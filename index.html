@@ -73,6 +73,37 @@
 </head>
 <body class="antialiased text-gray-800">
 
+    <!-- =========== CONFIGURACIÓN DE FIREBASE (¡IMPORTANTE!) =========== -->
+    <!-- 1. Crea un proyecto en Firebase (https://firebase.google.com/) -->
+    <!-- 2. Ve a la configuración de tu proyecto (el ícono del engranaje) -->
+    <!-- 3. En "Tus apps", crea una nueva app web (</>) -->
+    <!-- 4. Firebase te dará un objeto `firebaseConfig`. Cópialo y pégalo aquí abajo, reemplazando el objeto de ejemplo. -->
+    <!-- 5. Crea una ID única para tu app (ej: "las-anforas-reservas") y ponla en la variable `appId`. -->
+    <!-- 6. Ve a Firestore Database, crea una base de datos y en la pestaña "Reglas" pega: -->
+    <!--    rules_version = '2'; -->
+    <!--    service cloud.firestore { -->
+    <!--      match /databases/{database}/documents { -->
+    <!--        match /artifacts/{appId}/public/data/reservations/{docId} { -->
+    <!--          allow read, write: if true; -->
+    <!--        } -->
+    <!--      } -->
+    <!--    } -->
+    <script>
+        // PEGA TU CONFIGURACIÓN DE FIREBASE AQUÍ
+        const firebaseConfig = {
+            apiKey: "TU_API_KEY",
+            authDomain: "TU_AUTH_DOMAIN",
+            projectId: "TU_PROJECT_ID",
+            storageBucket: "TU_STORAGE_BUCKET",
+            messagingSenderId: "TU_MESSAGING_SENDER_ID",
+            appId: "TU_APP_ID"
+        };
+
+        // PONE TU ID ÚNICA AQUÍ (debe ser la misma que uses en tu página web pública)
+        const appId = "las-anforas-apart"; 
+    </script>
+    <!-- =================== FIN DE LA CONFIGURACIÓN =================== -->
+
     <div id="app" class="container mx-auto p-4 md:p-8 max-w-5xl">
         <div id="loader"></div>
         
@@ -198,18 +229,17 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, query, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const appContainer = document.getElementById('app');
         const loader = document.getElementById('loader');
 
         try {
-            if (typeof __firebase_config === 'undefined' || !__firebase_config || __firebase_config === '{}') {
-                throw new Error("La configuración de Firebase no está disponible.");
+            // Se usan las variables globales firebaseConfig y appId definidas al inicio del body
+            if (typeof firebaseConfig === 'undefined' || !firebaseConfig.apiKey || firebaseConfig.apiKey === "TU_API_KEY") {
+                throw new Error("La configuración de Firebase no está completa. Edita el archivo HTML y pega tus claves.");
             }
-            const firebaseConfig = JSON.parse(__firebase_config);
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             
             const app = initializeApp(firebaseConfig);
             const db = getFirestore(app);
@@ -464,8 +494,7 @@
             });
 
             (async () => {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-                else await signInAnonymously(auth);
+                await signInAnonymously(auth);
             })();
 
             async function addOrUpdateReservation(reservationsCol) {
@@ -548,4 +577,3 @@
     </script>
 </body>
 </html>
-
