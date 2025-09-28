@@ -88,15 +88,17 @@
     <!--        } -->
     <!--      } -->
     <!--    } -->
+    <!-- 7. Habilita la Autenticación Anónima: Ve a Authentication -> Sign-in method y HABILITA el proveedor "Anónimo". -->
     <script>
-        // PEGA TU CONFIGURACIÓN DE FIREBASE AQUÍ
+        // TU CONFIGURACIÓN DE FIREBASE
         const firebaseConfig = {
-            apiKey: "TU_API_KEY",
-            authDomain: "TU_AUTH_DOMAIN",
-            projectId: "TU_PROJECT_ID",
-            storageBucket: "TU_STORAGE_BUCKET",
-            messagingSenderId: "TU_MESSAGING_SENDER_ID",
-            appId: "TU_APP_ID"
+            apiKey: "AIzaSyDMmyQj0F2EueVtZhQ47zbvIdxPG-ugwJE",
+            authDomain: "reservas-las-anforas.firebaseapp.com",
+            projectId: "reservas-las-anforas",
+            storageBucket: "reservas-las-anforas.appspot.com",
+            messagingSenderId: "634753900109",
+            appId: "1:634753900109:web:6fd46e4905791756e80604",
+            measurementId: "G-KSQBZP7CV2"
         };
 
         // PONE TU ID ÚNICA AQUÍ (debe ser la misma que uses en tu página web pública)
@@ -494,7 +496,16 @@
             });
 
             (async () => {
-                await signInAnonymously(auth);
+                try {
+                    await signInAnonymously(auth);
+                } catch (error) {
+                    console.error("Authentication Error:", error);
+                    if (error.code === 'auth/configuration-not-found') {
+                        throw new Error("Error de Autenticación: Parece que no has habilitado el inicio de sesión anónimo en tu proyecto de Firebase. Ve a tu consola de Firebase -> Authentication -> Sign-in method y habilita el proveedor 'Anónimo'.");
+                    } else {
+                        throw new Error(`Error de Autenticación: ${error.message}`);
+                    }
+                }
             })();
 
             async function addOrUpdateReservation(reservationsCol) {
@@ -577,3 +588,4 @@
     </script>
 </body>
 </html>
+
