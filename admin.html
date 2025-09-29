@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Reservas - Las Ánforas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <style>
+        .calendar-day { transition: background-color 0.2s; }
+        .calendar-day.free:hover { background-color: #d1fae5; cursor: pointer; }
+        .booked-d2 { background-color: #fecaca; } /* Rojo claro para Dúplex 2 */
+        .booked-d3 { background-color: #bfdbfe; } /* Azul claro para Dúplex 3 */
+    </style>
+</head>
+<body class="bg-gray-100 p-4 sm:p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="flex flex-col sm:flex-row justify-between sm:items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-4 sm:mb-0">Gestor de Reservas</h1>
+            <div>
+                <button id="authorize_button" class="bg-blue-500 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 w-full sm:w-auto hidden">Autorizar con Google</button>
+                <button id="signout_button" class="bg-red-500 text-white font-bold py-2 px-4 rounded hover:bg-red-700 w-full sm:w-auto hidden">Cerrar Sesión</button>
+            </div>
+        </header>
+
+        <div id="auth-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong class="font-bold">¡Error de Configuración!</strong>
+            <span class="block sm:inline">Revisa el código. Parece que no has introducido tu Clave de API o tu ID de Calendario.</span>
+        </div>
+        
+        <div id="loading-message" class="text-center py-10 text-gray-600">
+            <p>Conectando con Google Calendar...</p>
+        </div>
+
+        <div id="content" class="hidden">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <div class="flex justify-between items-center mb-4">
+                    <button id="prev-month" class="p-2 rounded-full hover:bg-gray-200">&lt;</button>
+                    <h2 id="month-year" class="text-xl font-semibold text-center"></h2>
+                    <button id="next-month" class="p-2 rounded-full hover:bg-gray-200">&gt;</button>
+                </div>
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1 text-center">
+                    <!-- El calendario se generará aquí -->
+                </div>
+                <div class="mt-4 flex justify-center space-x-4 text-sm">
+                    <div class="flex items-center"><span class="w-4 h-4 booked-d2 mr-2 rounded"></span>Dúplex 2</div>
+                    <div class="flex items-center"><span class="w-4 h-4 booked-d3 mr-2 rounded"></span>Dúplex 3</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para crear/editar reserva -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-4">
+            <h3 id="modal-title" class="text-2xl font-bold mb-4">Nueva Reserva</h3>
+            <form id="event-form">
+                <input type="hidden" id="event-id">
+                <div class="mb-4">
+                    <label for="summary" class="block text-gray-700">Título (Ej: Dúplex 2 - Familia Pérez)</label>
+                    <input type="text" id="summary" class="w-full p-2 border rounded mt-1" required>
+                </div>
+                <div class="mb-4">
+                    <label for="start-date" class="block text-gray-700">Fecha de Inicio</label>
+                    <input type="date" id="start-date" class="w-full p-2 border rounded mt-1" required>
+                </div>
+                <div class="mb-4">
+                    <label for="end-date" class="block text-gray-700">Fecha de Fin (el día de check-out)</label>
+                    <input type="date" id="end-date" class="w-full p-2 border rounded mt-1" required>
+                </div>
+                <div class="flex flex-wrap justify-end space-x-0 sm:space-x-4 space-y-2 sm:space-y-0 mt-6">
+                    <button type="button" id="delete-button" class="bg-red-500 text-white font-bold py-2 px-4 rounded hover:bg-red-700 hidden w-full sm:w-auto">Eliminar</button>
+                    <button type="button" id="cancel-button" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded hover:bg-gray-400 w-full sm:w-auto">Cancelar</button>
+                    <button type="submit" class="bg-green-500 text-white font-bold py-2 px-4 rounded hover:bg-green-700 w-full sm:w-auto">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    // ==================================================================
+    // ===                 CREDENCIALES INTEGRADAS                    ===
+    // ==================================================================
+    
+    const CLIENT_ID = '634759900109-lut1v3i8seht1saqaacc122c6n9i117.apps.googleusercontent.com';
+    const API_KEY = 'AIzaSyDMmyQj0F2EueVtZhQ47zbvIdxPG-ugwJE';
+    const CALENDAR_ID = '6881a4b2edd4ebcd79aae69ec238ce9b36b775247771d12645e07dfd7fa67785@group.calendar.google.com';
+    
+    // ==================================================================
+
+    const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
+    const SCOPES = 'https://www.googleapis.com/auth/calendar';
+
+    let tokenClient;
+    let gapiInited = false;
+    let gisInited = false;
+    let currentDate = new Date();
+
+    const authorizeButton = document.getElementById('authorize_button');
+    const signoutButton = document.getElementById('signout_button');
+    const content = document.getElementById('content');
+    const modal = document.getElementById('modal');
+    const eventForm = document.getElementById('event-form');
+    const authError = document.getElementById('auth-error');
+    const loadingMessage = document.getElementById('loading-message');
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        gapiLoaded();
+        gisLoaded();
+    });
+
+    function gapiLoaded() {
+        gapi.load('client', initializeGapiClient);
+    }
+
+    async function initializeGapiClient() {
+        if (API_KEY === 'REEMPLAZA_CON_TU_API_KEY' || CALENDAR_ID === 'REEMPLAZA_CON_TU_ID_DE_CALENDARIO') {
+            authError.classList.remove('hidden');
+            loadingMessage.classList.add('hidden');
+            return;
+        }
+
+        await gapi.client.init({
+            apiKey: API_KEY,
+            discoveryDocs: [DISCOVERY_DOC],
+        });
+        gapiInited = true;
+        maybeAutologin();
+    }
+
+    function gisLoaded() {
+        if (!window.google || !window.google.accounts) {
+             console.error("El script de Google Identity Services (GIS) no se cargó correctamente.");
+             return;
+        }
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: '', 
+        });
+        gisInited = true;
+        maybeAutologin();
+    }
+
+    function maybeAutologin() {
+        if (gapiInited && gisInited) {
+            tokenClient.callback = async (resp) => {
+                if (resp.error !== undefined) {
+                    updateUi(false);
+                    throw (resp);
+                }
+                updateUi(true);
+                await listUpcomingEvents();
+            };
+            tokenClient.requestAccessToken({prompt: 'none'});
+        }
+    }
+
+    function handleAuthClick() {
+        tokenClient.callback = async (resp) => {
+            if (resp.error !== undefined) {
+                throw (resp);
+            }
+            updateUi(true);
+            await listUpcomingEvents();
+        };
+
+        if (gapi.client.getToken() === null) {
+            tokenClient.requestAccessToken({prompt: 'consent'});
+        } else {
+            tokenClient.requestAccessToken({prompt: ''});
+        }
+    }
+
+    function handleSignoutClick() {
+        const token = gapi.client.getToken();
+        if (token !== null) {
+            google.accounts.oauth2.revoke(token.access_token);
+            gapi.client.setToken('');
+            updateUi(false);
+        }
+    }
+
+    function updateUi(isAuthorized) {
+        loadingMessage.classList.add('hidden');
+        if(isAuthorized) {
+            content.classList.remove('hidden');
+            signoutButton.classList.remove('hidden');
+            authorizeButton.classList.add('hidden');
+        } else {
+            content.classList.add('hidden');
+            signoutButton.classList.add('hidden');
+            authorizeButton.classList.remove('hidden');
+        }
+    }
+
+    async function listUpcomingEvents() {
+        const grid = document.getElementById('calendar-grid');
+        grid.innerHTML = '<p class="col-span-7 text-center text-gray-500 py-10">Cargando reservas...</p>';
+        let response;
+        const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+        const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59).toISOString();
+        
+        try {
+            response = await gapi.client.calendar.events.list({
+                'calendarId': CALENDAR_ID,
+                'timeMin': firstDayOfMonth,
+                'timeMax': lastDayOfMonth,
+                'showDeleted': false,
+                'singleEvents': true,
+                'orderBy': 'startTime'
+            });
+        } catch (err) {
+            console.error('Error al listar eventos:', err);
+            let errorMessage = 'Error al cargar las reservas. Revisa la consola.';
+            if (err.result && err.result.error && err.result.error.status === 'PERMISSION_DENIED') {
+                errorMessage = '<b>Error de Permisos:</b> La Clave de API no tiene permiso para acceder a Google Calendar. Por favor, sigue la guía para habilitar la "Google Calendar API" en tu proyecto de Google Cloud.';
+            }
+            grid.innerHTML = `<p class="col-span-7 text-center text-red-700 bg-red-100 p-4 rounded-lg">${errorMessage}</p>`;
+            return;
+        }
+        
+        generateCalendar(response.result.items);
+    }
+
+    function generateCalendar(events) {
+        const grid = document.getElementById('calendar-grid');
+        const monthYearEl = document.getElementById('month-year');
+        grid.innerHTML = '';
+        monthYearEl.textContent = currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+
+        ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'].forEach(day => {
+            grid.innerHTML += `<div class="font-bold text-gray-600 p-2 border-b"> ${day} </div>`;
+        });
+
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        for (let i = 0; i < firstDay; i++) {
+            grid.innerHTML += '<div></div>';
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dayEl = document.createElement('div');
+            dayEl.innerHTML = `<span class="text-lg">${day}</span>`;
+            dayEl.classList.add('calendar-day', 'p-2', 'sm:p-4', 'rounded-md', 'relative', 'h-24', 'border');
+            const thisDate = new Date(year, month, day);
+            
+            let bookedClass = '';
+            let eventOnThisDay = null;
+
+            for (const event of events) {
+                const start = new Date(event.start.date || event.start.dateTime);
+                const end = new Date(event.end.date || event.end.dateTime);
+                const startUTC = new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate()));
+                const endUTC = new Date(Date.UTC(end.getFullYear(), end.getMonth(), end.getDate()));
+                if (thisDate >= startUTC && thisDate < endUTC) {
+                    eventOnThisDay = event;
+                    if (event.summary.toLowerCase().includes('dúplex 2') || event.summary.toLowerCase().includes('duplex 2')) {
+                        bookedClass = 'booked-d2';
+                    } else if (event.summary.toLowerCase().includes('dúplex 3') || event.summary.toLowerCase().includes('duplex 3')) {
+                        bookedClass = 'booked-d3';
+                    } else {
+                        bookedClass = 'bg-gray-300';
+                    }
+                    dayEl.onclick = () => openModal(event);
+                    dayEl.innerHTML += `<div class="text-xs truncate mt-1">${event.summary}</div>`;
+                    dayEl.style.cursor = 'pointer';
+                    break;
+                }
+            }
+
+            if(eventOnThisDay) {
+                 dayEl.classList.add(bookedClass, 'text-gray-800');
+            } else {
+                 dayEl.classList.add('free', 'bg-white');
+                 dayEl.onclick = () => openModal(null, thisDate);
+            }
+
+            grid.appendChild(dayEl);
+        }
+    }
+    
+    function openModal(event = null, date = null) {
+        eventForm.reset();
+        document.getElementById('delete-button').classList.add('hidden');
+        
+        if (event) { // Editando evento existente
+            document.getElementById('modal-title').textContent = 'Editar Reserva';
+            document.getElementById('event-id').value = event.id;
+            document.getElementById('summary').value = event.summary || '';
+            document.getElementById('start-date').value = (event.start.date || event.start.dateTime).slice(0, 10);
+            document.getElementById('end-date').value = (event.end.date || event.end.dateTime).slice(0, 10);
+            document.getElementById('delete-button').classList.remove('hidden');
+        } else { // Creando nuevo evento
+            document.getElementById('modal-title').textContent = 'Nueva Reserva';
+            document.getElementById('event-id').value = '';
+            document.getElementById('start-date').value = date.toISOString().slice(0, 10);
+            const nextDay = new Date(date);
+            nextDay.setDate(date.getDate() + 1);
+            document.getElementById('end-date').value = nextDay.toISOString().slice(0, 10);
+        }
+        
+        modal.classList.remove('hidden');
+    }
+    
+    function closeModal() {
+        modal.classList.add('hidden');
+    }
+
+    async function handleFormSubmit(e) {
+        e.preventDefault();
+        const eventId = document.getElementById('event-id').value;
+        const summary = document.getElementById('summary').value;
+        const startDate = document.getElementById('start-date').value;
+        const endDate = document.getElementById('end-date').value;
+
+        const event = {
+            'summary': summary,
+            'start': { 'date': startDate },
+            'end': { 'date': endDate },
+        };
+        
+        try {
+            if (eventId) { // Actualizar
+                await gapi.client.calendar.events.update({ 'calendarId': CALENDAR_ID, 'eventId': eventId, 'resource': event });
+            } else { // Crear
+                await gapi.client.calendar.events.insert({ 'calendarId': CALENDAR_ID, 'resource': event });
+            }
+            closeModal();
+            listUpcomingEvents();
+        } catch (err) {
+            console.error('Error al guardar el evento:', err);
+            alert('Hubo un error al guardar la reserva. Revisa la consola para más detalles.');
+        }
+    }
+    
+    async function deleteEvent() {
+        const eventId = document.getElementById('event-id').value;
+        if (confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
+            try {
+                await gapi.client.calendar.events.delete({ 'calendarId': CALENDAR_ID, 'eventId': eventId });
+                closeModal();
+                listUpcomingEvents();
+            } catch (err) {
+                console.error('Error al eliminar evento:', err);
+                alert('Hubo un error al eliminar la reserva.');
+            }
+        }
+    }
+    
+    authorizeButton.onclick = handleAuthClick;
+    signoutButton.onclick = handleSignoutClick;
+    document.getElementById('prev-month').onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); listUpcomingEvents(); };
+    document.getElementById('next-month').onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); listUpcomingEvents(); };
+    document.getElementById('cancel-button').onclick = closeModal;
+    document.getElementById('delete-button').onclick = deleteEvent;
+    eventForm.onsubmit = handleFormSubmit;
+    </script>
+</body>
+</html>
+
