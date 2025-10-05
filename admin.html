@@ -30,7 +30,7 @@
         </div>
         
         <div id="loading-message" class="text-center py-10 text-gray-600">
-            <p>Conectando con Google Calendar...</p>
+            <p>Esperando autorización...</p>
         </div>
 
         <div id="content" class="hidden">
@@ -126,7 +126,7 @@
             discoveryDocs: [DISCOVERY_DOC],
         });
         gapiInited = true;
-        maybeAutologin();
+        maybeEnableButtons();
     }
 
     function gisLoaded() {
@@ -140,26 +140,27 @@
             callback: '', 
         });
         gisInited = true;
-        maybeAutologin();
+        maybeEnableButtons();
     }
 
-    function maybeAutologin() {
+    function maybeEnableButtons() {
         if (gapiInited && gisInited) {
-            tokenClient.callback = async (resp) => {
-                if (resp.error !== undefined) {
-                    updateUi(false);
-                    throw (resp);
-                }
-                updateUi(true);
-                await listUpcomingEvents();
-            };
-            tokenClient.requestAccessToken({prompt: 'none'});
+            // Muestra el botón de autorizar y oculta el mensaje de carga inicial
+            authorizeButton.classList.remove('hidden');
+            loadingMessage.classList.add('hidden');
         }
     }
 
     function handleAuthClick() {
+        // Al hacer clic, oculta el botón y muestra "Cargando..."
+        authorizeButton.classList.add('hidden');
+        loadingMessage.classList.remove('hidden');
+        loadingMessage.querySelector('p').textContent = 'Conectando con Google Calendar...';
+
         tokenClient.callback = async (resp) => {
             if (resp.error !== undefined) {
+                // Si hay un error (ej: el usuario cierra el popup), vuelve a mostrar el botón
+                updateUi(false);
                 throw (resp);
             }
             updateUi(true);
@@ -192,6 +193,8 @@
             content.classList.add('hidden');
             signoutButton.classList.add('hidden');
             authorizeButton.classList.remove('hidden');
+            loadingMessage.classList.remove('hidden');
+            loadingMessage.querySelector('p').textContent = 'Por favor, autoriza para continuar.';
         }
     }
 
@@ -236,10 +239,10 @@
 
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
-        const firstDay = new Date(year, month, 1).getDay();
+        const firstDayOfMonth = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        for (let i = 0; i < firstDay; i++) {
+        for (let i = 0; i < firstDayOfMonth; i++) {
             grid.innerHTML += '<div></div>';
         }
 
@@ -247,17 +250,19 @@
             const dayEl = document.createElement('div');
             dayEl.innerHTML = `<span class="text-lg">${day}</span>`;
             dayEl.classList.add('calendar-day', 'p-2', 'sm:p-4', 'rounded-md', 'relative', 'h-24', 'border');
-            const thisDate = new Date(year, month, day);
+            
+            const thisDate = new Date(Date.UTC(year, month, day));
             
             let bookedClass = '';
             let eventOnThisDay = null;
 
             for (const event of events) {
-                const start = new Date(event.start.date || event.start.dateTime);
-                const end = new Date(event.end.date || event.end.dateTime);
-                const startUTC = new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate()));
-                const endUTC = new Date(Date.UTC(end.getFullYear(), end.getMonth(), end.getDate()));
-                if (thisDate >= startUTC && thisDate < endUTC) {
+                const startString = event.start.date || event.start.dateTime;
+                const endString = event.end.date || event.end.dateTime;
+                const startDate = new Date(startString.slice(0, 10) + 'T00:00:00Z');
+                const endDate = new Date(endString.slice(0, 10) + 'T00:00:00Z');
+                
+                if (thisDate >= startDate && thisDate < endDate) {
                     eventOnThisDay = event;
                     if (event.summary.toLowerCase().includes('dúplex 2') || event.summary.toLowerCase().includes('duplex 2')) {
                         bookedClass = 'booked-d2';
