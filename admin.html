@@ -102,7 +102,7 @@
     // ===                 CREDENCIALES INTEGRADAS                    ===
     // ==================================================================
     
-    const CLIENT_ID = '634759900109-lut1v3i8seht1saqaacc122c6n9i117.apps.googleusercontent.com';
+    const CLIENT_ID = '634759900109-0fhs6flue0fhrfih7c5dmm57mmdgtavmu.apps.googleusercontent.com';
     const API_KEY = 'AIzaSyB3K7k0PS_OwlJFIQUgDquHMDNbL8MOJNc';
     const CALENDAR_ID = '6881a4b2edd4ebcd79aae69ec238ce9b36b775247771d12645e07dfd7fa67785@group.calendar.google.com';
     
@@ -161,9 +161,12 @@
     function handleAuthClick() {
         authorizeButton.classList.add('hidden');
         loadingMessage.classList.remove('hidden');
-        loadingMessage.querySelector('p').textContent = 'Conectando...';
+        loadingMessage.querySelector('p').textContent = 'Conectando con Google Calendar...';
         tokenClient.callback = async (resp) => {
-            if (resp.error !== undefined) { updateUi(false); throw (resp); }
+            if (resp.error !== undefined) {
+                updateUi(false);
+                throw (resp);
+            }
             updateUi(true);
             await listUpcomingEvents();
         };
