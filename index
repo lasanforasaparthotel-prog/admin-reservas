@@ -14,178 +14,277 @@
         .disabled { color: #a8a29e; cursor: not-allowed; background-color: #f5f5f4; text-decoration: line-through; }
         .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 30px; height: 30px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        [data-reservation-card] { transition: opacity 0.3s ease-out, height 0.3s ease-out; }
+        [data-reservation-card], [data-customer-card] { transition: all 0.3s ease-out; }
+        .deleting { opacity: 0.4; transform: scale(0.95); }
+        #undo-toast { transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out; }
+        .filter-btn.active { background-color: #0f766e; color: white; }
     </style>
   </head>
   <body class="bg-slate-100 p-4 md:p-8">
     <div class="max-w-4xl mx-auto">
         <header class="mb-8">
-            <h1 class="text-3xl font-bold text-slate-800">Panel de Reservas</h1>
-            <p class="text-slate-500">Añade y visualiza las reservas de Las Ánforas.</p>
+            <h1 class="text-3xl font-bold text-slate-800">Panel de Administración</h1>
+            <p class="text-slate-500">Gestiona tus reservas, clientes y finanzas de Las Ánforas.</p>
         </header>
+
+        <!-- DASHBOARD DE INFORMES -->
+        <section id="dashboard-section" class="mb-10 bg-white rounded-xl shadow-lg p-6">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-y-4">
+                <h2 class="text-2xl font-bold text-slate-700">Dashboard de Informes</h2>
+                <div class="flex flex-col md:flex-row items-center gap-4">
+                    <select id="unit-filter" class="filter-btn bg-white text-sm font-semibold py-1.5 px-3 rounded-md border border-slate-300">
+                        <option value="all">Todas las Unidades</option>
+                        <option value="duplex2">Dúplex 2</option>
+                        <option value="duplex3">Dúplex 3</option>
+                    </select>
+                    <div id="date-filter-group" class="flex items-center gap-2 bg-slate-200 p-1 rounded-lg">
+                        <button data-period="this_month" class="filter-btn active text-sm font-semibold py-1 px-3 rounded-md">Este Mes</button>
+                        <button data-period="last_30_days" class="filter-btn text-sm font-semibold py-1 px-3 rounded-md">Últimos 30 días</button>
+                        <button data-period="this_year" class="filter-btn text-sm font-semibold py-1 px-3 rounded-md">Este Año</button>
+                    </div>
+                </div>
+            </div>
+            <div id="dashboard-loader" class="flex justify-center my-8 hidden"><div class="loader"></div></div>
+            <div id="dashboard-content" class="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+                <!-- Métricas del Dashboard se cargarán aquí -->
+            </div>
+        </section>
 
         <!-- Formulario para añadir nueva reserva -->
         <main class="bg-white rounded-xl shadow-lg p-6 mb-10">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold text-slate-700">Añadir Nueva Reserva</h2>
-                <button type="button" id="clear-form-btn" class="text-sm bg-slate-200 text-slate-700 font-semibold py-1 px-3 rounded-lg hover:bg-slate-300">Limpiar</button>
-            </div>
-            
-            <form id="reservation-form" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Columna Izquierda: Dúplex y Calendario -->
-                <div class="space-y-4">
-                    <div>
-                        <label class="font-bold block mb-2">Dúplex</label>
-                        <div class="flex gap-4">
-                            <label class="flex items-center p-3 border rounded-lg has-[:checked]:bg-teal-50 has-[:checked]:border-teal-500 cursor-pointer w-full">
-                                <input type="radio" name="duplex" value="duplex2" class="h-4 w-4 text-teal-600 focus:ring-teal-500" checked>
-                                <span class="ml-3 text-slate-700">Dúplex 2 (Familiar)</span>
-                            </label>
-                            <label class="flex items-center p-3 border rounded-lg has-[:checked]:bg-teal-50 has-[:checked]:border-teal-500 cursor-pointer w-full">
-                                <input type="radio" name="duplex" value="duplex3" class="h-4 w-4 text-teal-600 focus:ring-teal-500">
-                                <span class="ml-3 text-slate-700">Dúplex 3 (2 Dorms)</span>
-                            </label>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="font-bold block mb-2">Fechas de Estadía</label>
-                        <div id="calendar-container" class="w-full border rounded-lg p-3">
-                            <div class="flex justify-between items-center mb-4">
-                                <button type="button" id="prev-month" class="p-2 rounded-full hover:bg-slate-100">&lt;</button>
-                                <h3 id="month-year" class="text-lg font-semibold"></h3>
-                                <button type="button" id="next-month" class="p-2 rounded-full hover:bg-slate-100">&gt;</button>
-                            </div>
-                            <div id="calendar-grid" class="grid grid-cols-7 gap-1 text-center"></div>
-                        </div>
-                        <p id="date-display" class="text-center mt-2 font-medium text-teal-700 h-6"></p>
-                    </div>
-                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label for="checkin-time" class="font-bold block mb-1">Hora Check-in</label>
-                            <select id="checkin-time" class="w-full p-2 border border-slate-300 rounded-lg">
-                                <option>09:00 hs</option>
-                                <option>10:00 hs</option>
-                                <option>11:00 hs</option>
-                                <option>12:00 hs</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="checkout-time" class="font-bold block mb-1">Hora Check-out</label>
-                             <select id="checkout-time" class="w-full p-2 border border-slate-300 rounded-lg">
-                                <option>12:00 hs</option>
-                                <option>18:00 hs</option>
-                            </select>
-                        </div>
-                    </div>
-                     <div>
-                        <label for="notas" class="font-bold block mb-1">Notas Adicionales</label>
-                        <textarea id="notas" class="w-full p-2 border border-slate-300 rounded-lg" rows="1" placeholder="Ej: Paga al llegar, necesita factura A..."></textarea>
-                    </div>
+            <h2 class="text-2xl font-bold text-slate-700 mb-4">Añadir Nueva Reserva</h2>
+            <form id="reservation-form" class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                
+                <div class="font-bold text-lg text-slate-800 md:col-span-2 border-b pb-2">1. Datos del Cliente</div>
+                <div>
+                    <label for="nombre" class="font-bold block mb-1">Nombre y Apellido</label>
+                    <input type="text" id="nombre" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="Juan Pérez" required>
+                </div>
+                <div>
+                    <label for="telefono" class="font-bold block mb-1">Teléfono</label>
+                    <input type="tel" id="telefono" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="11 2233 4455">
+                </div>
+                 <div>
+                    <label for="email" class="font-bold block mb-1">Email (Opcional)</label>
+                    <input type="email" id="email" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="juan.perez@email.com">
+                </div>
+                 <div>
+                    <label for="dni" class="font-bold block mb-1">DNI (Opcional)</label>
+                    <input type="text" id="dni" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="99.999.999">
                 </div>
 
-                <!-- Columna Derecha: Datos de la reserva -->
-                <div class="space-y-4">
+                <div class="font-bold text-lg text-slate-800 md:col-span-2 border-b pb-2 pt-4">2. Datos de la Reserva</div>
+                <div>
+                    <label class="font-bold block mb-2">Unidad</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center p-3 border rounded-lg has-[:checked]:bg-teal-50 has-[:checked]:border-teal-500 cursor-pointer w-full">
+                            <input type="radio" name="duplex" value="duplex2" class="h-4 w-4 text-teal-600 focus:ring-teal-500" checked>
+                            <span class="ml-3 text-slate-700">Dúplex 2</span>
+                        </label>
+                        <label class="flex items-center p-3 border rounded-lg has-[:checked]:bg-teal-50 has-[:checked]:border-teal-500 cursor-pointer w-full">
+                            <input type="radio" name="duplex" value="duplex3" class="h-4 w-4 text-teal-600 focus:ring-teal-500">
+                            <span class="ml-3 text-slate-700">Dúplex 3</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label class="font-bold block mb-2">Fechas de Estadía</label>
+                    <div id="calendar-container" class="w-full border rounded-lg p-3">
+                        <div class="flex justify-between items-center mb-4">
+                            <button type="button" id="prev-month" class="p-2 rounded-full hover:bg-slate-100">&lt;</button>
+                            <h3 id="month-year" class="text-lg font-semibold"></h3>
+                            <button type="button" id="next-month" class="p-2 rounded-full hover:bg-slate-100">&gt;</button>
+                        </div>
+                        <div id="calendar-grid" class="grid grid-cols-7 gap-1 text-center"></div>
+                    </div>
+                    <p id="date-display" class="text-center mt-2 font-medium text-teal-700 h-6"></p>
+                </div>
+                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label for="nombre" class="font-bold block mb-1">Nombre del Huésped</label>
-                        <input type="text" id="nombre" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="Ej: Juan Pérez" required>
+                        <label for="checkin-time" class="font-bold block mb-1">Hora Check-in</label>
+                        <select id="checkin-time" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option>09:00 hs</option>
+                            <option>10:00 hs</option>
+                            <option>11:00 hs</option>
+                            <option>12:00 hs</option>
+                        </select>
                     </div>
-                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label for="huespedes" class="font-bold block mb-1">Huéspedes (pagan)</label>
-                            <input type="number" id="huespedes" class="w-full p-2 border border-slate-300 rounded-lg" value="2" min="2" max="6">
-                        </div>
-                        <div>
-                            <label for="bebes" class="font-bold block mb-1">Bebés (no pagan)</label>
-                            <input type="number" id="bebes" class="w-full p-2 border border-slate-300 rounded-lg" value="0" min="0">
-                        </div>
+                    <div>
+                        <label for="checkout-time" class="font-bold block mb-1">Hora Check-out</label>
+                         <select id="checkout-time" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option>12:00 hs</option>
+                            <option>18:00 hs</option>
+                        </select>
                     </div>
-                    
-                    <div class="border rounded-lg p-4 space-y-4 bg-slate-50">
-                        <h3 class="font-bold text-lg text-slate-700 text-center -mt-1">Detalles de Pago</h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label for="descuento" class="font-bold block mb-1">Descuento (ARS)</label>
-                                <input type="number" id="descuento" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="0" min="0">
-                            </div>
-                            <div class="pt-7">
-                                <label class="flex items-center"><input type="checkbox" id="sabanas-checkbox" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Trae sábanas</span></label>
-                            </div>
+                </div>
+                 <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="huespedes" class="font-bold block mb-1">Huéspedes (pagan)</label>
+                        <input type="number" id="huespedes" class="w-full p-2 border border-slate-300 rounded-lg" value="2" min="2" max="6">
+                    </div>
+                    <div>
+                        <label for="bebes" class="font-bold block mb-1">Bebés (no pagan)</label>
+                        <input type="number" id="bebes" class="w-full p-2 border border-slate-300 rounded-lg" value="0" min="0">
+                    </div>
+                </div>
+                <div>
+                    <label class="font-bold block mb-2">Otros Detalles</label>
+                    <div class="space-y-2">
+                       <label class="flex items-center"><input type="checkbox" id="vehiculo-checkbox" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Ingresa vehiculo</span></label>
+                       <label class="flex items-center"><input type="checkbox" name="extras" value="Mascotas" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Trae mascotas</span></label>
+                       <label class="flex items-center"><input type="checkbox" id="salida-extendida-checkbox" name="extras" value="Salida Extendida" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Salida Extendida</span></label>
+                       <label class="flex items-center bg-amber-100 p-2 rounded-md"><input type="checkbox" id="promo-finde-checkbox" name="extras" value="Promo Finde" class="h-4 w-4 rounded text-amber-600"> <span class="ml-2 font-medium text-amber-800">Aplica Promo Fin de Semana</span></label>
+                    </div>
+                </div>
+                 <div>
+                    <label for="notas" class="font-bold block mb-1">Notas Adicionales</label>
+                    <textarea id="notas" class="w-full p-2 border border-slate-300 rounded-lg" rows="4" placeholder="Ej: Paga al llegar, necesita factura A..."></textarea>
+                </div>
+                
+                <div class="font-bold text-lg text-slate-800 md:col-span-2 border-b pb-2 pt-4">3. Detalles de Pago</div>
+                <div class="border rounded-lg p-4 space-y-4 bg-slate-50 md:col-span-2">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label for="descuento" class="font-bold block mb-1">Descuento Manual (ARS)</label>
+                            <input type="number" id="descuento" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="0" min="0">
+                        </div>
+                        <div class="pt-7">
+                            <label class="flex items-center"><input type="checkbox" id="sabanas-checkbox" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Trae sábanas</span></label>
                         </div>
                         <div>
                             <label for="importe-pagado" class="font-bold block mb-1">Importe Pagado (ARS)</label>
                             <input type="number" id="importe-pagado" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="0" min="0">
                         </div>
-                        <div id="price-breakdown" class="mt-2 text-sm text-slate-600 space-y-1 border-t pt-2">
-                             <p class="text-center text-slate-400">Selecciona fechas para ver el total.</p>
-                        </div>
                     </div>
-                    
-                    <div>
-                        <label class="font-bold block mb-2">Otros Detalles</label>
-                        <div class="space-y-2">
-                           <label class="flex items-center"><input type="checkbox" id="vehiculo-checkbox" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Ingresa vehículo</span></label>
-                           <label class="flex items-center"><input type="checkbox" name="extras" value="Mascotas" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Trae mascotas</span></label>
-                           <label class="flex items-center"><input type="checkbox" id="salida-extendida-checkbox" name="extras" value="Salida Extendida" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Salida Extendida</span></label>
-                           <label class="flex items-center bg-amber-100 p-2 rounded-md"><input type="checkbox" id="promo-finde-checkbox" name="extras" value="Promo Finde" class="h-4 w-4 rounded text-amber-600"> <span class="ml-2 font-medium text-amber-800">Aplica Promo Fin de Semana</span></label>
-                        </div>
+                    <div id="price-breakdown" class="mt-4 text-sm text-slate-600 space-y-1 border-t pt-4">
+                         <p class="text-center text-slate-400">Selecciona fechas para ver el total.</p>
                     </div>
                 </div>
                 
                 <div class="md:col-span-2 mt-4">
                     <input type="hidden" id="monto-hidden" value="0">
                     <input type="hidden" id="saldo-hidden" value="0">
-                    <button type="submit" id="submit-button" class="w-full bg-teal-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-teal-700 transition-colors disabled:bg-slate-400">
-                        Guardar Reserva
-                    </button>
+                    <input type="hidden" id="monto-bruto-hidden" value="0">
+                    <input type="hidden" id="total-descuentos-hidden" value="0">
+                    <div class="flex items-center justify-end gap-4">
+                        <button type="button" id="clear-form-btn-2" class="text-sm bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-lg hover:bg-slate-300">Limpiar Formulario</button>
+                        <button type="submit" id="submit-button" class="bg-teal-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-teal-700 transition-colors disabled:bg-slate-400 flex-grow">
+                            Guardar Reserva
+                        </button>
+                    </div>
                     <p id="form-message" class="text-center mt-2 h-5"></p>
                 </div>
             </form>
         </main>
+        
+        <!-- BASE DE CLIENTES -->
+        <section class="bg-white rounded-xl shadow-lg p-6 mb-10">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                <h2 class="text-2xl font-bold text-slate-700">Base de Clientes</h2>
+                <input type="search" id="customer-search-input" placeholder="🔍 Buscar cliente por nombre..." class="w-full md:w-1/2 p-2 border rounded-lg focus:ring-2 focus:ring-teal-500">
+            </div>
+            <div id="customer-loader" class="flex justify-center my-8 hidden"><div class="loader"></div></div>
+            <div id="customers-list" class="space-y-3 max-h-96 overflow-y-auto">
+                <!-- Los clientes se cargarán aquí -->
+            </div>
+        </section>
 
         <!-- Listado de Reservas Existentes -->
         <section>
-            <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-                <h2 class="text-2xl font-bold text-slate-700">Reservas Cargadas</h2>
-                <input type="search" id="search-input" placeholder="🔍 Buscar por nombre..." class="w-full md:w-1/3 p-2 border rounded-lg focus:ring-2 focus:ring-teal-500">
-                <button id="download-csv-btn" class="bg-white border border-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 w-full md:w-auto">
-                    Descargar Hoja
-                </button>
-            </div>
+            <h2 class="text-2xl font-bold text-slate-700 mb-4">Historial de Reservas</h2>
             <div id="loader" class="flex justify-center my-8"><div class="loader"></div></div>
             <div id="reservations-list" class="space-y-3">
                 <!-- Las reservas se cargarán aquí dinámicamente -->
             </div>
         </section>
-
-        <!-- Informes -->
-         <section id="reports-section" class="mt-10 bg-white rounded-xl shadow-lg p-6 hidden">
-            <h2 class="text-2xl font-bold text-slate-700 mb-4">Informes Rápidos</h2>
-            <div id="reports-content" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                <!-- Content will be generated by JS -->
-            </div>
-        </section>
     </div>
+
+    <!-- Toast de Deshacer -->
+    <div id="undo-toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-800 text-white py-3 px-5 rounded-lg shadow-xl flex items-center gap-4 transform translate-y-20 opacity-0">
+        <p>Reserva eliminada.</p>
+        <button id="undo-btn" class="font-bold text-teal-400 hover:text-teal-300">Deshacer</button>
+    </div>
+
 
     <script>
         // --- GLOBAL STATE ---
-        let allReservations = [];
+        let allData = { reservations: [], customers: [] };
+        let undoState = { timer: null, reservation: null };
 
-        // --- CONFIGURACIÓN DE TARIFAS Y BLOQUEOS (Traído del cotizador) ---
+        // --- LÓGICA DEL DASHBOARD ---
+        function calculateDashboardMetrics() {
+            const period = document.querySelector('#date-filter-group .active').dataset.period;
+            const unit = document.getElementById('unit-filter').value;
+            const now = new Date();
+            let startDate, endDate;
+
+            switch (period) {
+                case 'last_30_days':
+                    endDate = new Date();
+                    startDate = new Date();
+                    startDate.setDate(now.getDate() - 30);
+                    break;
+                case 'this_year':
+                    startDate = new Date(now.getFullYear(), 0, 1);
+                    endDate = new Date(now.getFullYear(), 11, 31);
+                    break;
+                case 'this_month':
+                default:
+                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                    break;
+            }
+
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(23, 59, 59, 999);
+            
+            const filteredByUnit = (unit === 'all')
+                ? allData.reservations
+                : allData.reservations.filter(res => res.duplex === unit);
+
+            const filteredReservations = filteredByUnit.filter(res => {
+                const resStartDate = new Date(res.fecha_inicio);
+                return resStartDate >= startDate && resStartDate <= endDate;
+            });
+            
+            let facturacionBruta = 0, nochesVendidas = 0, totalDescuentos = 0;
+            
+            filteredReservations.forEach(res => {
+                facturacionBruta += Number(res.monto_bruto) || Number(res.monto) || 0;
+                totalDescuentos += Number(res.total_descuentos) || 0;
+                const nights = (new Date(res.fecha_fin) - new Date(res.fecha_inicio)) / 86400000;
+                if (nights > 0) nochesVendidas += nights;
+            });
+            
+            const duplexCount = (unit === 'all') ? 2 : 1;
+            const totalDaysInPeriod = (endDate - startDate) / 86400000;
+            const totalAvailableNights = totalDaysInPeriod * duplexCount;
+            const ocupacion = totalAvailableNights > 0 ? (nochesVendidas / totalAvailableNights) * 100 : 0;
+            const adr = nochesVendidas > 0 ? facturacionBruta / nochesVendidas : 0;
+            
+            updateDashboardUI({ facturacionBruta, totalDescuentos, nochesVendidas, ocupacion, adr });
+        }
+
+        function updateDashboardUI(metrics) {
+            const formatCurrency = (value) => value.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 });
+            
+            document.getElementById('dashboard-content').innerHTML = `
+                <div><p class="text-slate-500 text-sm font-bold">FACT. BRUTA</p><p class="text-2xl font-bold text-teal-600">${formatCurrency(metrics.facturacionBruta)}</p></div>
+                <div><p class="text-slate-500 text-sm font-bold">DESCUENTOS</p><p class="text-2xl font-bold text-red-500">${formatCurrency(metrics.totalDescuentos)}</p></div>
+                <div><p class="text-slate-500 text-sm font-bold">NOCHES VENDIDAS</p><p class="text-2xl font-bold text-teal-600">${metrics.nochesVendidas}</p></div>
+                <div><p class="text-slate-500 text-sm font-bold">TARIFA PROMEDIO</p><p class="text-2xl font-bold text-blue-600">${formatCurrency(metrics.adr)}</p></div>
+                <div class="col-span-2 md:col-span-1"><p class="text-slate-500 text-sm font-bold">OCUPACIÓN</p><p class="text-2xl font-bold text-teal-600">${metrics.ocupacion.toFixed(1)}%</p></div>
+            `;
+        }
+        
+        // --- CÁLCULO DE PRECIOS Y FORMULARIO ---
         const DUPLEX_CONFIG = {
             duplex3: { name: 'Dúplex 3 (2 Dorms)', minGuests: 2, maxGuests: 5, prices: { 2: 51000, 3: 57000, 4: 65000, 5: 70000 }, beds: 4 },
             duplex2: { name: 'Dúplex 2 (Familiar)', minGuests: 2, maxGuests: 6, prices: { 2: 51000, 3: 57000, 4: 65000, 5: 70000, 6: 75000 }, beds: 5 }
         };
         const TOWEL_DISCOUNT_PER_BED = 2000;
-        const LATE_CHECKOUT_COST_PERCENTAGE = 0.20; // 20% of one night
-        const BLOCKED_DATES = {
-            duplex2: [ { start: new Date('2025-12-01T00:00:00'), end: new Date('2025-12-31T00:00:00') } ],
-            duplex3: [
-                { start: new Date('2025-09-28T00:00:00'), end: new Date('2025-12-31T00:00:00') },
-                { start: new Date('2026-01-01T00:00:00'), end: new Date('2026-01-01T00:00:00') }
-            ]
-        };
+        const LATE_CHECKOUT_COST_PERCENTAGE = 0.20;
 
-        // --- LÓGICA DE CÁLCULO DE PRECIOS ---
         function getTowelDiscountAmount(duplex, guests, bringOwnTowels) {
             if (!bringOwnTowels) return 0;
             let bedsUsed = 0;
@@ -202,8 +301,7 @@
             const priceBreakdownEl = document.getElementById('price-breakdown');
             
             priceBreakdownEl.innerHTML = '<p class="text-center text-slate-400">Selecciona fechas para ver el total.</p>';
-            document.getElementById('monto-hidden').value = 0;
-            document.getElementById('saldo-hidden').value = 0;
+            ['monto-hidden', 'saldo-hidden', 'monto-bruto-hidden', 'total-descuentos-hidden'].forEach(id => document.getElementById(id).value = 0);
             if (!checkIn || !checkOut) return;
 
             const nights = (checkOut - checkIn) / 86400000;
@@ -220,71 +318,59 @@
             }
             
             const pricePerNight = config.prices[guests];
+            const accommodationCost = nights * pricePerNight;
+            const lateCheckoutCost = (document.getElementById('salida-extendida-checkbox').checked) ? pricePerNight * LATE_CHECKOUT_COST_PERCENTAGE : 0;
+            const montoBruto = accommodationCost + lateCheckoutCost;
+
             const promoPrice = DUPLEX_CONFIG.duplex3.prices[5] * 2;
-            const accommodationCost = isPromoActive ? promoPrice : nights * pricePerNight;
-            
+            const promoDiscount = isPromoActive ? (accommodationCost - promoPrice) : 0;
             const bringOwnTowels = document.getElementById('sabanas-checkbox').checked;
             const towelDiscount = getTowelDiscountAmount(duplex, guests, bringOwnTowels);
             const manualDiscount = parseInt(document.getElementById('descuento').value, 10) || 0;
-            const lateCheckoutCost = (document.getElementById('salida-extendida-checkbox').checked) ? pricePerNight * LATE_CHECKOUT_COST_PERCENTAGE : 0;
+            const totalDescuentos = promoDiscount + towelDiscount + manualDiscount;
+            
+            const totalNeto = montoBruto - totalDescuentos;
             const importePagado = parseInt(document.getElementById('importe-pagado').value, 10) || 0;
+            const saldo = totalNeto - importePagado;
             
-            const total = accommodationCost + lateCheckoutCost - towelDiscount - manualDiscount;
-            const saldo = total - importePagado;
-            
-            document.getElementById('monto-hidden').value = total;
+            document.getElementById('monto-bruto-hidden').value = montoBruto;
+            document.getElementById('total-descuentos-hidden').value = totalDescuentos;
+            document.getElementById('monto-hidden').value = totalNeto;
             document.getElementById('saldo-hidden').value = saldo;
 
             priceBreakdownEl.innerHTML = `
-              <div class="flex justify-between"><span>${isPromoActive ? 'Paquete Promo' : `Alojamiento (${nights} noches)`}</span> <span>${accommodationCost.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>
-              ${lateCheckoutCost > 0 ? `<div class="flex justify-between"><span>+ Salida Extendida</span> <span>${lateCheckoutCost.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>` : ''}
+              <div class="flex justify-between"><span>Monto Bruto</span> <span>${montoBruto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>
+              ${promoDiscount > 0 ? `<div class="flex justify-between text-red-600"><span>- Desc. Promo Finde</span> <span>(${promoDiscount.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })})</span></div>` : ''}
               ${towelDiscount > 0 ? `<div class="flex justify-between text-green-600"><span>- Desc. Sábanas</span> <span>(${towelDiscount.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })})</span></div>` : ''}
               ${manualDiscount > 0 ? `<div class="flex justify-between text-red-600"><span>- Desc. Manual</span> <span>(${manualDiscount.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })})</span></div>` : ''}
               <hr class="my-1 border-slate-300">
-              <div class="flex justify-between font-bold text-lg text-slate-800"><span>TOTAL</span> <span>${total.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>
+              <div class="flex justify-between font-bold text-lg text-slate-800"><span>TOTAL</span> <span>${totalNeto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>
               <div class="flex justify-between text-slate-600"><span>Pagado</span> <span>-${importePagado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>
               <hr class="my-1 border-slate-300">
               <div class="flex justify-between font-bold text-lg ${saldo > 0 ? 'text-red-600' : 'text-green-600'}"><span>SALDO</span> <span>${saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>
             `;
         }
 
-        // --- LÓGICA DEL CALENDARIO ---
+        // --- CALENDARIO ---
+        const calendarState = { checkIn: null, checkOut: null };
+        const calendar = { container: document.getElementById('calendar-grid'), monthYearEl: document.getElementById('month-year'), nextBtn: document.getElementById('next-month'), prevBtn: document.getElementById('prev-month'), currentDate: new Date() };
+        calendar.currentDate.setDate(1);
+
         function isDateBooked(date, duplex) {
             const dateOnly = new Date(date);
             dateOnly.setHours(0, 0, 0, 0);
-            for (const res of allReservations) {
+            for (const res of allData.reservations) {
                 if (res.duplex === duplex) {
                     const start = new Date(res.fecha_inicio);
                     const end = new Date(res.fecha_fin);
-                    // Bloquea los días dentro de la estadía
-                    if (dateOnly >= start && dateOnly < end) { return true; }
-                    // Bloquea el día de check-in si coincide con un check-out extendido
+                    if (dateOnly >= start && dateOnly < end) return true;
                     if (res.hora_checkout && res.hora_checkout.includes('18')) {
-                        const lateCheckoutDate = new Date(res.fecha_fin);
-                        if (dateOnly.getTime() === lateCheckoutDate.getTime()) {
-                            return true;
-                        }
+                        if (dateOnly.getTime() === end.getTime()) return true;
                     }
                 }
             }
             return false;
         }
-
-        function isDateHardBlocked(date) {
-            const selectedDuplex = document.querySelector('input[name="duplex"]:checked').value;
-            const blockedPeriods = BLOCKED_DATES[selectedDuplex];
-            if (!blockedPeriods) return false;
-            const dateOnly = new Date(date);
-            dateOnly.setHours(0, 0, 0, 0);
-            for (const period of blockedPeriods) {
-                if (dateOnly >= period.start && dateOnly <= period.end) return true;
-            }
-            return false;
-        }
-
-        const calendarState = { checkIn: null, checkOut: null };
-        const calendar = { container: document.getElementById('calendar-grid'), monthYearEl: document.getElementById('month-year'), nextBtn: document.getElementById('next-month'), prevBtn: document.getElementById('prev-month'), currentDate: new Date() };
-        calendar.currentDate.setDate(1);
 
         function generateCalendar() {
             calendar.container.innerHTML = '';
@@ -305,9 +391,9 @@
                 dayEl.className = 'calendar-day p-2 rounded-full cursor-pointer';
                 dayEl.textContent = day;
                 
-                if (isDateHardBlocked(date) || isBooked) {
+                if (isBooked) {
                     dayEl.classList.add('disabled');
-                    if (isBooked) dayEl.style.backgroundColor = '#fca5a5';
+                    dayEl.style.backgroundColor = '#fca5a5';
                 } else {
                     dayEl.onclick = () => selectDate(date);
                 }
@@ -322,13 +408,11 @@
         
         function selectDate(date) {
             if (!calendarState.checkIn || (calendarState.checkIn && calendarState.checkOut)) {
-                calendarState.checkIn = date;
-                calendarState.checkOut = null;
+                calendarState.checkIn = date; calendarState.checkOut = null;
             } else if (date > calendarState.checkIn) {
                 calendarState.checkOut = date;
             } else {
-                calendarState.checkIn = date;
-                calendarState.checkOut = null;
+                calendarState.checkIn = date; calendarState.checkOut = null;
             }
 
             if (calendarState.checkIn && calendarState.checkOut) {
@@ -371,37 +455,20 @@
         calendar.nextBtn.onclick = () => { calendar.currentDate.setMonth(calendar.currentDate.getMonth() + 1); generateCalendar(); };
         calendar.prevBtn.onclick = () => { calendar.currentDate.setMonth(calendar.currentDate.getMonth() - 1); generateCalendar(); };
         
-        // --- LÓGICA DE DATOS Y REPORTES ---
+        // --- RENDERIZADO Y BÚSQUEDA ---
         const loader = document.getElementById('loader');
         const reservationsList = document.getElementById('reservations-list');
-        const reportsSection = document.getElementById('reports-section');
-        const reportsContent = document.getElementById('reports-content');
-
-        function generateReports(reservations) {
-            reportsSection.classList.toggle('hidden', reservations.length === 0);
-            if(reservations.length === 0) return;
-
-            const totalIncome = reservations.reduce((sum, res) => sum + (Number(res.monto) || 0), 0);
-            const totalNights = reservations.reduce((sum, res) => {
-                const nights = (new Date(res.fecha_fin) - new Date(res.fecha_inicio)) / 86400000;
-                return sum + (nights > 0 ? nights : 0);
-            }, 0);
-
-            reportsContent.innerHTML = `
-                <div><p class="text-slate-500 text-sm font-bold">TOTAL FACTURADO</p><p class="text-2xl font-bold text-teal-600">${totalIncome.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p></div>
-                <div><p class="text-slate-500 text-sm font-bold">RESERVAS TOTALES</p><p class="text-2xl font-bold text-teal-600">${reservations.length}</p></div>
-                <div><p class="text-slate-500 text-sm font-bold">NOCHES VENDIDAS</p><p class="text-2xl font-bold text-teal-600">${totalNights}</p></div>`;
-        }
+        const customersList = document.getElementById('customers-list');
         
         function renderReservations(reservations) {
             reservationsList.innerHTML = '';
              if (reservations.length === 0) {
-                reservationsList.innerHTML = `<p class="text-slate-500 text-center">No hay reservas que coincidan con la búsqueda.</p>`;
+                reservationsList.innerHTML = `<p class="text-slate-500 text-center">No hay reservas para mostrar.</p>`;
                 return;
             }
-            reservations.forEach(res => {
+            reservations.forEach((res, index) => {
                 let details = `${res.huespedes} huéspedes, ${res.bebes} bebés`;
-                if (res.vehiculo === 'Sí') details += ' | Con vehículo';
+                if (res.vehiculo === 'Sí') details += ' | Con vehiculo';
                 if (res.extras) details += ` | ${res.extras}`;
                 const checkinTime = res.hora_checkin || '09:00 hs';
                 const checkoutTime = res.hora_checkout || '12:00 hs';
@@ -411,6 +478,7 @@
                 const pagoStatus = `Pagado: ${(Number(res.importe_pagado) || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })} | Saldo: <span class="font-bold ${saldoClass}">${saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span>`;
 
                 const card = document.createElement('div');
+                card.id = `reservation-${res.rowIndex}`;
                 card.dataset.reservationCard = true;
                 card.dataset.guestName = (res.nombre || '').toLowerCase();
                 card.className = "bg-white border rounded-lg p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2";
@@ -422,135 +490,139 @@
                         <p class="text-sm mt-1 bg-slate-100 p-1 rounded">${pagoStatus}</p>
                         ${res.notas ? `<p class="text-sm text-blue-800 bg-blue-100 p-1 rounded mt-1"><b>Nota:</b> ${res.notas}</p>` : ''}
                     </div>
-                    <span class="font-bold text-lg text-teal-600 self-end sm:self-center">${(Number(res.monto) || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span>`;
+                    <div class="flex flex-col items-end gap-2">
+                        <span class="font-bold text-lg text-teal-600">${(Number(res.monto) || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span>
+                        <button onclick="handleDelete(${res.rowIndex})" class="text-red-500 hover:text-red-700 font-semibold text-sm">Eliminar</button>
+                    </div>
+                `;
                 reservationsList.appendChild(card);
             });
         }
 
-        function fetchReservations() {
+        function renderCustomers(customers) {
+            customersList.innerHTML = '';
+            if (!customers || customers.length === 0) {
+                 customersList.innerHTML = `<p class="text-slate-500 text-center">No hay clientes en la base de datos.</p>`;
+                 return;
+            }
+            customers.forEach(cust => {
+                const card = document.createElement('div');
+                card.dataset.customerCard = true;
+                card.dataset.customerName = (cust.nombre_completo || '').toLowerCase();
+                card.className = "bg-white border rounded-lg p-3 flex justify-between items-center";
+                card.innerHTML = `
+                    <div>
+                        <p class="font-bold text-slate-800">${cust.nombre_completo}</p>
+                        <p class="text-sm text-slate-500">${cust.telefono || 'Sin teléfono'} | ${cust.email || 'Sin email'}</p>
+                    </div>
+                    <button class="text-sm bg-slate-200 text-slate-700 font-semibold py-1 px-3 rounded-lg hover:bg-slate-300">Ver Historial</button>
+                `;
+                customersList.appendChild(card);
+            });
+        }
+
+        function fetchAllData() {
             loader.style.display = 'flex';
+            document.getElementById('dashboard-loader').style.display = 'flex';
             reservationsList.innerHTML = '';
+            
             google.script.run
                 .withSuccessHandler(data => {
-                    allReservations = JSON.parse(data);
+                    allData = JSON.parse(data);
                     loader.style.display = 'none';
-                    if (allReservations.error) {
-                        reservationsList.innerHTML = `<p class="text-red-500 text-center">${allReservations.error}</p>`;
+                    document.getElementById('dashboard-loader').style.display = 'none';
+
+                    if (allData.error) {
+                       alert(`Error: ${allData.error}`);
                     } else {
-                        renderReservations(allReservations);
-                        generateReports(allReservations);
+                        renderReservations(allData.reservations);
+                        renderCustomers(allData.customers);
+                        calculateDashboardMetrics();
                         generateCalendar();
                     }
                 })
                 .withFailureHandler(error => {
-                    reservationsList.innerHTML = `<p class="text-red-500 text-center">Error: ${error.message}</p>`;
+                   alert(`Error fatal: ${error.message}`);
                     loader.style.display = 'none';
+                    document.getElementById('dashboard-loader').style.display = 'none';
                 })
-                .getReservations();
+                .getDashboardData();
         }
 
-        // --- LÓGICA DE FORMULARIO Y DESCARGA ---
         function resetForm() {
             document.getElementById('reservation-form').reset();
             calendarState.checkIn = null; calendarState.checkOut = null;
-            
-            document.getElementById('promo-finde-checkbox').checked = false;
-            
             updateDateDisplay(); 
             generateCalendar();
             const huespedesInput = document.getElementById('huespedes');
-            huespedesInput.value = DUPLEX_CONFIG['duplex2'].minGuests;
-            huespedesInput.max = DUPLEX_CONFIG['duplex2'].maxGuests;
-            huespedesInput.min = DUPLEX_CONFIG['duplex2'].minGuests;
+            const duplexConfig = DUPLEX_CONFIG[document.querySelector('input[name="duplex"]:checked').value];
+            huespedesInput.value = duplexConfig.minGuests;
+            huespedesInput.max = duplexConfig.maxGuests;
+            huespedesInput.min = duplexConfig.minGuests;
             calculateAndDisplayTotal();
         }
-
-        document.getElementById('clear-form-btn').addEventListener('click', resetForm);
-        document.getElementById('search-input').addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const filteredReservations = allReservations.filter(res => (res.nombre || '').toLowerCase().includes(searchTerm));
-            renderReservations(filteredReservations);
-        });
-
-        document.getElementById('download-csv-btn').addEventListener('click', () => {
-            const btn = document.getElementById('download-csv-btn');
-            btn.textContent = 'Generando...';
-            btn.disabled = true;
-            google.script.run
-                .withSuccessHandler(csvContent => {
-                    if (!csvContent) { alert('No se pudo generar el archivo.'); }
-                    else {
-                        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
-                        const link = Object.assign(document.createElement('a'), {
-                            href: URL.createObjectURL(blob),
-                            download: "reservas_las_anforas.csv"
-                        });
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    }
-                    btn.textContent = 'Descargar Hoja';
-                    btn.disabled = false;
-                })
-                .withFailureHandler(error => { alert('Error al descargar: ' + error.message); })
-                .exportSheetAsCSV();
-        });
-
-        document.getElementById('reservation-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            if (!calendarState.checkIn || !calendarState.checkOut) {
-                alert('Por favor, selecciona una fecha de inicio y fin.');
-                return;
+        
+        // --- MANEJO DE ELIMINACIÓN CON DESHACER ---
+        function handleDelete(rowIndex) {
+            if (undoState.timer) {
+                clearTimeout(undoState.timer);
+                permanentlyDelete();
             }
-            const submitButton = document.getElementById('submit-button');
-            submitButton.disabled = true;
-            submitButton.textContent = 'Guardando...';
-
-            let otherExtras = Array.from(document.querySelectorAll('input[name="extras"]:checked')).map(el => el.value);
-            if(document.getElementById('sabanas-checkbox').checked) { otherExtras.push('Trae sábanas/toallas'); }
-
-            const reservationData = {
-                duplex: document.querySelector('input[name="duplex"]:checked').value,
-                fecha_inicio: formatDateForSheet(calendarState.checkIn),
-                fecha_fin: formatDateForSheet(calendarState.checkOut),
-                nombre: document.getElementById('nombre').value,
-                huespedes: document.getElementById('huespedes').value,
-                bebes: document.getElementById('bebes').value,
-                monto: document.getElementById('monto-hidden').value,
-                importe_pagado: document.getElementById('importe-pagado').value || '0',
-                saldo: document.getElementById('saldo-hidden').value,
-                vehiculo: document.getElementById('vehiculo-checkbox').checked ? 'Sí' : 'No',
-                extras: otherExtras.join(', '),
-                notas: document.getElementById('notas').value,
-                hora_checkin: document.getElementById('checkin-time').value,
-                hora_checkout: document.getElementById('checkout-time').value
-            };
-
-            google.script.run
-                .withSuccessHandler(response => {
-                    const result = JSON.parse(response);
-                    alert(result.message);
-                    if (result.success) {
-                        resetForm();
-                        fetchReservations();
-                    }
-                    submitButton.disabled = false;
-                    submitButton.textContent = 'Guardar Reserva';
-                })
-                .withFailureHandler(error => {
-                    alert('Error: ' + error.message);
-                    submitButton.disabled = false;
-                    submitButton.textContent = 'Guardar Reserva';
-                })
-                .addReservation(reservationData);
-        });
-
-        // --- CARGA INICIAL Y EVENT LISTENERS ---
-        window.addEventListener('load', () => {
-            fetchReservations();
+            const reservationCard = document.getElementById(`reservation-${rowIndex}`);
+            const reservationData = allData.reservations.find(r => r.rowIndex === rowIndex);
+            undoState.reservation = { ...reservationData, element: reservationCard };
             
-            const fieldsToRecalculate = ['huespedes', 'descuento', 'sabanas-checkbox', 'salida-extendida-checkbox', 'promo-finde-checkbox', 'importe-pagado'];
-            fieldsToRecalculate.forEach(id => {
+            reservationCard.classList.add('deleting');
+            showUndoToast(true);
+
+            undoState.timer = setTimeout(() => {
+                permanentlyDelete();
+            }, 7000);
+        }
+
+        function permanentlyDelete() {
+            if (!undoState.reservation) return;
+            const { rowIndex } = undoState.reservation;
+            
+            google.script.run
+                .withSuccessHandler(() => {
+                    fetchAllData(); 
+                })
+                .withFailureHandler(err => alert(`Error al eliminar: ${err.message}`))
+                .deleteReservation(rowIndex);
+
+            clearUndoState();
+        }
+
+        function undoDelete() {
+            if (!undoState.reservation) return;
+            undoState.reservation.element.classList.remove('deleting');
+            clearUndoState();
+        }
+
+        function clearUndoState() {
+            clearTimeout(undoState.timer);
+            undoState = { timer: null, reservation: null };
+            showUndoToast(false);
+        }
+
+        function showUndoToast(show) {
+            const toast = document.getElementById('undo-toast');
+            if (show) {
+                toast.classList.remove('translate-y-20', 'opacity-0');
+            } else {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }
+        }
+        
+        // --- EVENT LISTENERS ---
+        window.addEventListener('load', () => {
+            fetchAllData();
+            
+            document.getElementById('clear-form-btn').addEventListener('click', resetForm);
+            document.getElementById('clear-form-btn-2').addEventListener('click', resetForm);
+            
+            ['huespedes', 'descuento', 'sabanas-checkbox', 'salida-extendida-checkbox', 'promo-finde-checkbox', 'importe-pagado'].forEach(id => {
                 const element = document.getElementById(id);
                 element.addEventListener('input', calculateAndDisplayTotal);
                 element.addEventListener('change', calculateAndDisplayTotal);
@@ -562,29 +634,107 @@
                     const huespedesInput = document.getElementById('huespedes');
                     huespedesInput.min = config.minGuests;
                     huespedesInput.max = config.maxGuests;
-                    if (parseInt(huespedesInput.value) < config.minGuests) {
-                        huespedesInput.value = config.minGuests;
-                    }
-                    if (parseInt(huespedesInput.value) > config.maxGuests) {
-                        huespedesInput.value = config.maxGuests;
-                    }
+                    if (parseInt(huespedesInput.value) < config.minGuests) huespedesInput.value = config.minGuests;
+                    if (parseInt(huespedesInput.value) > config.maxGuests) huespedesInput.value = config.maxGuests;
                     generateCalendar();
                     calculateAndDisplayTotal();
                 });
             });
+            
+            document.getElementById('customer-search-input').addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                document.querySelectorAll('[data-customer-card]').forEach(card => {
+                    card.style.display = card.dataset.customerName.includes(searchTerm) ? 'flex' : 'none';
+                });
+            });
 
-            // Lógica para auto-seleccionar checkout time con Salida Extendida
+            document.querySelectorAll('.filter-btn, #unit-filter').forEach(el => {
+                el.addEventListener('change', calculateDashboardMetrics);
+                el.addEventListener('click', calculateDashboardMetrics);
+            });
+
             document.getElementById('salida-extendida-checkbox').addEventListener('change', (e) => {
-                const checkoutSelect = document.getElementById('checkout-time');
-                if (e.target.checked) {
-                    checkoutSelect.value = '18:00 hs';
-                } else {
-                    // Solo vuelve a 12hs si no es promo finde
-                    const isPromo = document.getElementById('promo-finde-checkbox').checked;
-                    if (!isPromo) {
-                        checkoutSelect.value = '12:00 hs';
-                    }
+                document.getElementById('checkout-time').value = e.target.checked ? '18:00 hs' : '12:00 hs';
+            });
+            
+            document.getElementById('undo-btn').addEventListener('click', undoDelete);
+        
+            document.getElementById('download-csv-btn').addEventListener('click', () => {
+                const btn = document.getElementById('download-csv-btn');
+                btn.textContent = 'Generando...';
+                btn.disabled = true;
+                google.script.run
+                    .withSuccessHandler(csvContent => {
+                        if (!csvContent) { alert('No se pudo generar el archivo.'); }
+                        else {
+                            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+                            const link = Object.assign(document.createElement('a'), {
+                                href: URL.createObjectURL(blob),
+                                download: "reservas_las_anforas.csv"
+                            });
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }
+                        btn.textContent = 'Descargar Hoja';
+                        btn.disabled = false;
+                    })
+                    .withFailureHandler(error => { alert('Error al descargar: ' + error.message); })
+                    .exportSheetAsCSV();
+            });
+
+            document.getElementById('reservation-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (!calendarState.checkIn || !calendarState.checkOut) {
+                    alert('Por favor, selecciona una fecha de inicio y fin.');
+                    return;
                 }
+                const submitButton = document.getElementById('submit-button');
+                submitButton.disabled = true;
+                submitButton.textContent = 'Guardando...';
+
+                let otherExtras = Array.from(document.querySelectorAll('input[name="extras"]:checked')).map(el => el.value);
+                if(document.getElementById('sabanas-checkbox').checked) { otherExtras.push('Trae sábanas/toallas'); }
+
+                const reservationData = {
+                    duplex: document.querySelector('input[name="duplex"]:checked').value,
+                    fecha_inicio: formatDateForSheet(calendarState.checkIn),
+                    fecha_fin: formatDateForSheet(calendarState.checkOut),
+                    nombre: document.getElementById('nombre').value,
+                    telefono: document.getElementById('telefono').value,
+                    email: document.getElementById('email').value,
+                    dni: document.getElementById('dni').value,
+                    huespedes: document.getElementById('huespedes').value,
+                    bebes: document.getElementById('bebes').value,
+                    monto: document.getElementById('monto-hidden').value,
+                    importe_pagado: document.getElementById('importe-pagado').value || '0',
+                    saldo: document.getElementById('saldo-hidden').value,
+                    monto_bruto: document.getElementById('monto-bruto-hidden').value,
+                    total_descuentos: document.getElementById('total-descuentos-hidden').value,
+                    vehiculo: document.getElementById('vehiculo-checkbox').checked ? 'Sí' : 'No',
+                    extras: otherExtras.join(', '),
+                    notas: document.getElementById('notas').value,
+                    hora_checkin: document.getElementById('checkin-time').value,
+                    hora_checkout: document.getElementById('checkout-time').value
+                };
+
+                google.script.run
+                    .withSuccessHandler(response => {
+                        const result = JSON.parse(response);
+                        alert(result.message);
+                        if (result.success) {
+                            resetForm();
+                            fetchAllData();
+                        }
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Guardar Reserva';
+                    })
+                    .withFailureHandler(error => {
+                        alert('Error: ' + error.message);
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Guardar Reserva';
+                    })
+                    .addReservation(reservationData);
             });
         });
     </script>
