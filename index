@@ -1,32 +1,593 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seleccionar Dúplex - Gestor de Reservas</title>
+<html>
+  <head>
+    <base target="_top">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        html, body { font-family: sans-serif; }
+        .calendar-day { transition: all 0.2s ease-in-out; }
+        .calendar-day:not(.disabled):hover { background-color: #14b8a6; color: white; transform: scale(1.1); }
+        .selected { background-color: #0f766e; color: white; border-radius: 50%; }
+        .in-range { background-color: #ccfbf1; color: #134e4a; border-radius: 0; }
+        .start-range { background-color: #0f766e; color: white; border-top-left-radius: 50%; border-bottom-left-radius: 50%; }
+        .end-range { background-color: #0f766e; color: white; border-top-right-radius: 50%; border-bottom-right-radius: 50%; }
+        .disabled { color: #a8a29e; cursor: not-allowed; background-color: #f5f5f4; text-decoration: line-through; }
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        [data-reservation-card] { transition: opacity 0.3s ease-out, height 0.3s ease-out; }
     </style>
-</head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div class="bg-white p-8 sm:p-12 rounded-xl shadow-2xl text-center max-w-md w-full">
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">Panel de Gestión</h1>
-        <p class="text-gray-600 mb-8">Selecciona el dúplex que deseas administrar.</p>
-        
-        <div class="space-y-4">
-            <a href="admin.html?duplex=2" class="block w-full bg-blue-500 text-white font-bold py-4 px-6 rounded-lg text-lg hover:bg-blue-600 transition-transform transform hover:scale-105">
-                Gestionar Dúplex 2
-            </a>
-            <a href="admin.html?duplex=3" class="block w-full bg-teal-500 text-white font-bold py-4 px-6 rounded-lg text-lg hover:bg-teal-600 transition-transform transform hover:scale-105">
-                Gestionar Dúplex 3
-            </a>
-        </div>
-    </div>
-</body>
-</html>
+  </head>
+  <body class="bg-slate-100 p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-800">Panel de Reservas</h1>
+            <p class="text-slate-500">Añade y visualiza las reservas de Las Ánforas.</p>
+        </header>
 
+        <!-- Formulario para añadir nueva reserva -->
+        <main class="bg-white rounded-xl shadow-lg p-6 mb-10">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-slate-700">Añadir Nueva Reserva</h2>
+                <button type="button" id="clear-form-btn" class="text-sm bg-slate-200 text-slate-700 font-semibold py-1 px-3 rounded-lg hover:bg-slate-300">Limpiar</button>
+            </div>
+            
+            <form id="reservation-form" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Columna Izquierda: Dúplex y Calendario -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="font-bold block mb-2">Dúplex</label>
+                        <div class="flex gap-4">
+                            <label class="flex items-center p-3 border rounded-lg has-[:checked]:bg-teal-50 has-[:checked]:border-teal-500 cursor-pointer w-full">
+                                <input type="radio" name="duplex" value="duplex2" class="h-4 w-4 text-teal-600 focus:ring-teal-500" checked>
+                                <span class="ml-3 text-slate-700">Dúplex 2 (Familiar)</span>
+                            </label>
+                            <label class="flex items-center p-3 border rounded-lg has-[:checked]:bg-teal-50 has-[:checked]:border-teal-500 cursor-pointer w-full">
+                                <input type="radio" name="duplex" value="duplex3" class="h-4 w-4 text-teal-600 focus:ring-teal-500">
+                                <span class="ml-3 text-slate-700">Dúplex 3 (2 Dorms)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="font-bold block mb-2">Fechas de Estadía</label>
+                        <div id="calendar-container" class="w-full border rounded-lg p-3">
+                            <div class="flex justify-between items-center mb-4">
+                                <button type="button" id="prev-month" class="p-2 rounded-full hover:bg-slate-100">&lt;</button>
+                                <h3 id="month-year" class="text-lg font-semibold"></h3>
+                                <button type="button" id="next-month" class="p-2 rounded-full hover:bg-slate-100">&gt;</button>
+                            </div>
+                            <div id="calendar-grid" class="grid grid-cols-7 gap-1 text-center"></div>
+                        </div>
+                        <p id="date-display" class="text-center mt-2 font-medium text-teal-700 h-6"></p>
+                    </div>
+                     <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="checkin-time" class="font-bold block mb-1">Hora Check-in</label>
+                            <select id="checkin-time" class="w-full p-2 border border-slate-300 rounded-lg">
+                                <option>09:00 hs</option>
+                                <option>10:00 hs</option>
+                                <option>11:00 hs</option>
+                                <option>12:00 hs</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="checkout-time" class="font-bold block mb-1">Hora Check-out</label>
+                             <select id="checkout-time" class="w-full p-2 border border-slate-300 rounded-lg">
+                                <option>12:00 hs</option>
+                                <option>18:00 hs</option>
+                            </select>
+                        </div>
+                    </div>
+                     <div>
+                        <label for="notas" class="font-bold block mb-1">Notas Adicionales</label>
+                        <textarea id="notas" class="w-full p-2 border border-slate-300 rounded-lg" rows="1" placeholder="Ej: Paga al llegar, necesita factura A..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Columna Derecha: Datos de la reserva -->
+                <div class="space-y-4">
+                    <div>
+                        <label for="nombre" class="font-bold block mb-1">Nombre del Huésped</label>
+                        <input type="text" id="nombre" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="Ej: Juan Pérez" required>
+                    </div>
+                     <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="huespedes" class="font-bold block mb-1">Huéspedes (pagan)</label>
+                            <input type="number" id="huespedes" class="w-full p-2 border border-slate-300 rounded-lg" value="2" min="2" max="6">
+                        </div>
+                        <div>
+                            <label for="bebes" class="font-bold block mb-1">Bebés (no pagan)</label>
+                            <input type="number" id="bebes" class="w-full p-2 border border-slate-300 rounded-lg" value="0" min="0">
+                        </div>
+                    </div>
+                    
+                    <div class="border rounded-lg p-4 space-y-4 bg-slate-50">
+                        <h3 class="font-bold text-lg text-slate-700 text-center -mt-1">Detalles de Pago</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="descuento" class="font-bold block mb-1">Descuento (ARS)</label>
+                                <input type="number" id="descuento" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="0" min="0">
+                            </div>
+                            <div class="pt-7">
+                                <label class="flex items-center"><input type="checkbox" id="sabanas-checkbox" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Trae sábanas</span></label>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="importe-pagado" class="font-bold block mb-1">Importe Pagado (ARS)</label>
+                            <input type="number" id="importe-pagado" class="w-full p-2 border border-slate-300 rounded-lg" placeholder="0" min="0">
+                        </div>
+                        <div id="price-breakdown" class="mt-2 text-sm text-slate-600 space-y-1 border-t pt-2">
+                             <p class="text-center text-slate-400">Selecciona fechas para ver el total.</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="font-bold block mb-2">Otros Detalles</label>
+                        <div class="space-y-2">
+                           <label class="flex items-center"><input type="checkbox" id="vehiculo-checkbox" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Ingresa vehículo</span></label>
+                           <label class="flex items-center"><input type="checkbox" name="extras" value="Mascotas" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Trae mascotas</span></label>
+                           <label class="flex items-center"><input type="checkbox" id="salida-extendida-checkbox" name="extras" value="Salida Extendida" class="h-4 w-4 rounded text-teal-600"> <span class="ml-2">Salida Extendida</span></label>
+                           <label class="flex items-center bg-amber-100 p-2 rounded-md"><input type="checkbox" id="promo-finde-checkbox" name="extras" value="Promo Finde" class="h-4 w-4 rounded text-amber-600"> <span class="ml-2 font-medium text-amber-800">Aplica Promo Fin de Semana</span></label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="md:col-span-2 mt-4">
+                    <input type="hidden" id="monto-hidden" value="0">
+                    <input type="hidden" id="saldo-hidden" value="0">
+                    <button type="submit" id="submit-button" class="w-full bg-teal-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-teal-700 transition-colors disabled:bg-slate-400">
+                        Guardar Reserva
+                    </button>
+                    <p id="form-message" class="text-center mt-2 h-5"></p>
+                </div>
+            </form>
+        </main>
+
+        <!-- Listado de Reservas Existentes -->
+        <section>
+            <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                <h2 class="text-2xl font-bold text-slate-700">Reservas Cargadas</h2>
+                <input type="search" id="search-input" placeholder="🔍 Buscar por nombre..." class="w-full md:w-1/3 p-2 border rounded-lg focus:ring-2 focus:ring-teal-500">
+                <button id="download-csv-btn" class="bg-white border border-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 w-full md:w-auto">
+                    Descargar Hoja
+                </button>
+            </div>
+            <div id="loader" class="flex justify-center my-8"><div class="loader"></div></div>
+            <div id="reservations-list" class="space-y-3">
+                <!-- Las reservas se cargarán aquí dinámicamente -->
+            </div>
+        </section>
+
+        <!-- Informes -->
+         <section id="reports-section" class="mt-10 bg-white rounded-xl shadow-lg p-6 hidden">
+            <h2 class="text-2xl font-bold text-slate-700 mb-4">Informes Rápidos</h2>
+            <div id="reports-content" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <!-- Content will be generated by JS -->
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // --- GLOBAL STATE ---
+        let allReservations = [];
+
+        // --- CONFIGURACIÓN DE TARIFAS Y BLOQUEOS (Traído del cotizador) ---
+        const DUPLEX_CONFIG = {
+            duplex3: { name: 'Dúplex 3 (2 Dorms)', minGuests: 2, maxGuests: 5, prices: { 2: 51000, 3: 57000, 4: 65000, 5: 70000 }, beds: 4 },
+            duplex2: { name: 'Dúplex 2 (Familiar)', minGuests: 2, maxGuests: 6, prices: { 2: 51000, 3: 57000, 4: 65000, 5: 70000, 6: 75000 }, beds: 5 }
+        };
+        const TOWEL_DISCOUNT_PER_BED = 2000;
+        const LATE_CHECKOUT_COST_PERCENTAGE = 0.20; // 20% of one night
+        const BLOCKED_DATES = {
+            duplex2: [ { start: new Date('2025-12-01T00:00:00'), end: new Date('2025-12-31T00:00:00') } ],
+            duplex3: [
+                { start: new Date('2025-09-28T00:00:00'), end: new Date('2025-12-31T00:00:00') },
+                { start: new Date('2026-01-01T00:00:00'), end: new Date('2026-01-01T00:00:00') }
+            ]
+        };
+
+        // --- LÓGICA DE CÁLCULO DE PRECIOS ---
+        function getTowelDiscountAmount(duplex, guests, bringOwnTowels) {
+            if (!bringOwnTowels) return 0;
+            let bedsUsed = 0;
+            if (duplex === 'duplex3') {
+                if (guests <= 2) bedsUsed = 1; else if (guests === 3) bedsUsed = 2; else if (guests === 4) bedsUsed = 3; else if (guests >= 5) bedsUsed = 4;
+            } else if (duplex === 'duplex2') {
+                if (guests <= 2) bedsUsed = 1; else if (guests === 3) bedsUsed = 2; else if (guests === 4) bedsUsed = 3; else if (guests === 5) bedsUsed = 4; else if (guests >= 6) bedsUsed = 5;
+            }
+            return bedsUsed * TOWEL_DISCOUNT_PER_BED;
+        }
+        
+        function calculateAndDisplayTotal() {
+            const { checkIn, checkOut } = calendarState;
+            const priceBreakdownEl = document.getElementById('price-breakdown');
+            
+            priceBreakdownEl.innerHTML = '<p class="text-center text-slate-400">Selecciona fechas para ver el total.</p>';
+            document.getElementById('monto-hidden').value = 0;
+            document.getElementById('saldo-hidden').value = 0;
+            if (!checkIn || !checkOut) return;
+
+            const nights = (checkOut - checkIn) / 86400000;
+            if (nights <= 0) return;
+            
+            const isPromoActive = document.getElementById('promo-finde-checkbox').checked;
+            const duplex = document.querySelector('input[name="duplex"]:checked').value;
+            const guests = parseInt(document.getElementById('huespedes').value, 10);
+            const config = DUPLEX_CONFIG[duplex];
+
+            if (!guests || guests < config.minGuests || guests > config.maxGuests) {
+                priceBreakdownEl.innerHTML = `<p class="text-center text-red-500 font-bold">Huéspedes fuera de rango.</p>`;
+                return;
+            }
+            
+            const pricePerNight = config.prices[guests];
+            const promoPrice = DUPLEX_CONFIG.duplex3.prices[5] * 2;
+            const accommodationCost = isPromoActive ? promoPrice : nights * pricePerNight;
+            
+            const bringOwnTowels = document.getElementById('sabanas-checkbox').checked;
+            const towelDiscount = getTowelDiscountAmount(duplex, guests, bringOwnTowels);
+            const manualDiscount = parseInt(document.getElementById('descuento').value, 10) || 0;
+            const lateCheckoutCost = (document.getElementById('salida-extendida-checkbox').checked) ? pricePerNight * LATE_CHECKOUT_COST_PERCENTAGE : 0;
+            const importePagado = parseInt(document.getElementById('importe-pagado').value, 10) || 0;
+            
+            const total = accommodationCost + lateCheckoutCost - towelDiscount - manualDiscount;
+            const saldo = total - importePagado;
+            
+            document.getElementById('monto-hidden').value = total;
+            document.getElementById('saldo-hidden').value = saldo;
+
+            priceBreakdownEl.innerHTML = `
+              <div class="flex justify-between"><span>${isPromoActive ? 'Paquete Promo' : `Alojamiento (${nights} noches)`}</span> <span>${accommodationCost.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>
+              ${lateCheckoutCost > 0 ? `<div class="flex justify-between"><span>+ Salida Extendida</span> <span>${lateCheckoutCost.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>` : ''}
+              ${towelDiscount > 0 ? `<div class="flex justify-between text-green-600"><span>- Desc. Sábanas</span> <span>(${towelDiscount.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })})</span></div>` : ''}
+              ${manualDiscount > 0 ? `<div class="flex justify-between text-red-600"><span>- Desc. Manual</span> <span>(${manualDiscount.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })})</span></div>` : ''}
+              <hr class="my-1 border-slate-300">
+              <div class="flex justify-between font-bold text-lg text-slate-800"><span>TOTAL</span> <span>${total.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>
+              <div class="flex justify-between text-slate-600"><span>Pagado</span> <span>-${importePagado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>
+              <hr class="my-1 border-slate-300">
+              <div class="flex justify-between font-bold text-lg ${saldo > 0 ? 'text-red-600' : 'text-green-600'}"><span>SALDO</span> <span>${saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span></div>
+            `;
+        }
+
+        // --- LÓGICA DEL CALENDARIO ---
+        function isDateBooked(date, duplex) {
+            const dateOnly = new Date(date);
+            dateOnly.setHours(0, 0, 0, 0);
+            for (const res of allReservations) {
+                if (res.duplex === duplex) {
+                    const start = new Date(res.fecha_inicio);
+                    const end = new Date(res.fecha_fin);
+                    // Bloquea los días dentro de la estadía
+                    if (dateOnly >= start && dateOnly < end) { return true; }
+                    // Bloquea el día de check-in si coincide con un check-out extendido
+                    if (res.hora_checkout && res.hora_checkout.includes('18')) {
+                        const lateCheckoutDate = new Date(res.fecha_fin);
+                        if (dateOnly.getTime() === lateCheckoutDate.getTime()) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function isDateHardBlocked(date) {
+            const selectedDuplex = document.querySelector('input[name="duplex"]:checked').value;
+            const blockedPeriods = BLOCKED_DATES[selectedDuplex];
+            if (!blockedPeriods) return false;
+            const dateOnly = new Date(date);
+            dateOnly.setHours(0, 0, 0, 0);
+            for (const period of blockedPeriods) {
+                if (dateOnly >= period.start && dateOnly <= period.end) return true;
+            }
+            return false;
+        }
+
+        const calendarState = { checkIn: null, checkOut: null };
+        const calendar = { container: document.getElementById('calendar-grid'), monthYearEl: document.getElementById('month-year'), nextBtn: document.getElementById('next-month'), prevBtn: document.getElementById('prev-month'), currentDate: new Date() };
+        calendar.currentDate.setDate(1);
+
+        function generateCalendar() {
+            calendar.container.innerHTML = '';
+            const year = calendar.currentDate.getFullYear();
+            const month = calendar.currentDate.getMonth();
+            calendar.monthYearEl.textContent = calendar.currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+            
+            ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'].forEach(day => { calendar.container.appendChild(Object.assign(document.createElement('div'), { className: 'font-semibold text-slate-500 text-sm', textContent: day })); });
+
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            for (let i = 0; i < firstDayOfMonth; i++) calendar.container.appendChild(document.createElement('div'));
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayEl = document.createElement('div');
+                const date = new Date(year, month, day);
+                const isBooked = isDateBooked(date, document.querySelector('input[name="duplex"]:checked').value);
+                
+                dayEl.className = 'calendar-day p-2 rounded-full cursor-pointer';
+                dayEl.textContent = day;
+                
+                if (isDateHardBlocked(date) || isBooked) {
+                    dayEl.classList.add('disabled');
+                    if (isBooked) dayEl.style.backgroundColor = '#fca5a5';
+                } else {
+                    dayEl.onclick = () => selectDate(date);
+                }
+
+                if (calendarState.checkIn && date.getTime() === calendarState.checkIn.getTime()) dayEl.classList.add('selected', 'start-range');
+                if (calendarState.checkOut && date.getTime() === calendarState.checkOut.getTime()) dayEl.classList.add('selected', 'end-range');
+                if (calendarState.checkIn && calendarState.checkOut && date > calendarState.checkIn && date < calendarState.checkOut) dayEl.classList.add('in-range');
+
+                calendar.container.appendChild(dayEl);
+            }
+        }
+        
+        function selectDate(date) {
+            if (!calendarState.checkIn || (calendarState.checkIn && calendarState.checkOut)) {
+                calendarState.checkIn = date;
+                calendarState.checkOut = null;
+            } else if (date > calendarState.checkIn) {
+                calendarState.checkOut = date;
+            } else {
+                calendarState.checkIn = date;
+                calendarState.checkOut = null;
+            }
+
+            if (calendarState.checkIn && calendarState.checkOut) {
+                const nights = (calendarState.checkOut - calendarState.checkIn) / 86400000;
+                const isPromoWeekend = (calendarState.checkIn.getUTCDay() === 5 && nights === 2);
+                document.getElementById('promo-finde-checkbox').checked = isPromoWeekend;
+                document.getElementById('checkout-time').value = isPromoWeekend ? '18:00 hs' : '12:00 hs';
+            } else {
+                 document.getElementById('promo-finde-checkbox').checked = false;
+            }
+            
+            updateDateDisplay();
+            generateCalendar();
+            calculateAndDisplayTotal();
+        }
+
+        function formatDateForDisplay(date) { return date.toLocaleString('es-ES', { day: 'numeric', month: 'short' }); }
+        function formatDateForSheet(date) {
+            const d = new Date(date);
+            let month = '' + (d.getMonth() + 1), day = '' + d.getDate(), year = d.getFullYear();
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+            return [year, month, day].join('-');
+        }
+
+        function updateDateDisplay() {
+            const display = document.getElementById('date-display');
+            if (calendarState.checkIn && calendarState.checkOut) {
+                const nights = (calendarState.checkOut - calendarState.checkIn) / 86400000;
+                if (nights > 0) {
+                    display.textContent = `Desde ${formatDateForDisplay(calendarState.checkIn)} hasta ${formatDateForDisplay(calendarState.checkOut)} (${nights} ${nights === 1 ? 'noche' : 'noches'})`;
+                } else {
+                    display.textContent = 'Fechas inválidas';
+                }
+            } else if (calendarState.checkIn) {
+                display.textContent = `Check-in: ${formatDateForDisplay(calendarState.checkIn)}`;
+            } else { display.textContent = ''; }
+        }
+        
+        calendar.nextBtn.onclick = () => { calendar.currentDate.setMonth(calendar.currentDate.getMonth() + 1); generateCalendar(); };
+        calendar.prevBtn.onclick = () => { calendar.currentDate.setMonth(calendar.currentDate.getMonth() - 1); generateCalendar(); };
+        
+        // --- LÓGICA DE DATOS Y REPORTES ---
+        const loader = document.getElementById('loader');
+        const reservationsList = document.getElementById('reservations-list');
+        const reportsSection = document.getElementById('reports-section');
+        const reportsContent = document.getElementById('reports-content');
+
+        function generateReports(reservations) {
+            reportsSection.classList.toggle('hidden', reservations.length === 0);
+            if(reservations.length === 0) return;
+
+            const totalIncome = reservations.reduce((sum, res) => sum + (Number(res.monto) || 0), 0);
+            const totalNights = reservations.reduce((sum, res) => {
+                const nights = (new Date(res.fecha_fin) - new Date(res.fecha_inicio)) / 86400000;
+                return sum + (nights > 0 ? nights : 0);
+            }, 0);
+
+            reportsContent.innerHTML = `
+                <div><p class="text-slate-500 text-sm font-bold">TOTAL FACTURADO</p><p class="text-2xl font-bold text-teal-600">${totalIncome.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p></div>
+                <div><p class="text-slate-500 text-sm font-bold">RESERVAS TOTALES</p><p class="text-2xl font-bold text-teal-600">${reservations.length}</p></div>
+                <div><p class="text-slate-500 text-sm font-bold">NOCHES VENDIDAS</p><p class="text-2xl font-bold text-teal-600">${totalNights}</p></div>`;
+        }
+        
+        function renderReservations(reservations) {
+            reservationsList.innerHTML = '';
+             if (reservations.length === 0) {
+                reservationsList.innerHTML = `<p class="text-slate-500 text-center">No hay reservas que coincidan con la búsqueda.</p>`;
+                return;
+            }
+            reservations.forEach(res => {
+                let details = `${res.huespedes} huéspedes, ${res.bebes} bebés`;
+                if (res.vehiculo === 'Sí') details += ' | Con vehículo';
+                if (res.extras) details += ` | ${res.extras}`;
+                const checkinTime = res.hora_checkin || '09:00 hs';
+                const checkoutTime = res.hora_checkout || '12:00 hs';
+
+                const saldo = Number(res.saldo) || (Number(res.monto) - Number(res.importe_pagado));
+                const saldoClass = saldo > 0 ? 'text-red-600' : 'text-green-600';
+                const pagoStatus = `Pagado: ${(Number(res.importe_pagado) || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })} | Saldo: <span class="font-bold ${saldoClass}">${saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span>`;
+
+                const card = document.createElement('div');
+                card.dataset.reservationCard = true;
+                card.dataset.guestName = (res.nombre || '').toLowerCase();
+                card.className = "bg-white border rounded-lg p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2";
+                card.innerHTML = `
+                    <div class="flex-grow">
+                        <p class="font-bold text-slate-800">${res.nombre || 'Sin nombre'} (${res.duplex === 'duplex2' ? 'Dúplex 2' : 'Dúplex 3'})</p>
+                        <p class="text-slate-600">${new Date(res.fecha_inicio).toLocaleDateString('es-ES', {timeZone: 'UTC'})} (${checkinTime}) - ${new Date(res.fecha_fin).toLocaleDateString('es-ES', {timeZone: 'UTC'})} (${checkoutTime})</p>
+                        <p class="text-sm text-slate-500">${details}</p>
+                        <p class="text-sm mt-1 bg-slate-100 p-1 rounded">${pagoStatus}</p>
+                        ${res.notas ? `<p class="text-sm text-blue-800 bg-blue-100 p-1 rounded mt-1"><b>Nota:</b> ${res.notas}</p>` : ''}
+                    </div>
+                    <span class="font-bold text-lg text-teal-600 self-end sm:self-center">${(Number(res.monto) || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span>`;
+                reservationsList.appendChild(card);
+            });
+        }
+
+        function fetchReservations() {
+            loader.style.display = 'flex';
+            reservationsList.innerHTML = '';
+            google.script.run
+                .withSuccessHandler(data => {
+                    allReservations = JSON.parse(data);
+                    loader.style.display = 'none';
+                    if (allReservations.error) {
+                        reservationsList.innerHTML = `<p class="text-red-500 text-center">${allReservations.error}</p>`;
+                    } else {
+                        renderReservations(allReservations);
+                        generateReports(allReservations);
+                        generateCalendar();
+                    }
+                })
+                .withFailureHandler(error => {
+                    reservationsList.innerHTML = `<p class="text-red-500 text-center">Error: ${error.message}</p>`;
+                    loader.style.display = 'none';
+                })
+                .getReservations();
+        }
+
+        // --- LÓGICA DE FORMULARIO Y DESCARGA ---
+        function resetForm() {
+            document.getElementById('reservation-form').reset();
+            calendarState.checkIn = null; calendarState.checkOut = null;
+            
+            document.getElementById('promo-finde-checkbox').checked = false;
+            
+            updateDateDisplay(); 
+            generateCalendar();
+            const huespedesInput = document.getElementById('huespedes');
+            huespedesInput.value = DUPLEX_CONFIG['duplex2'].minGuests;
+            huespedesInput.max = DUPLEX_CONFIG['duplex2'].maxGuests;
+            huespedesInput.min = DUPLEX_CONFIG['duplex2'].minGuests;
+            calculateAndDisplayTotal();
+        }
+
+        document.getElementById('clear-form-btn').addEventListener('click', resetForm);
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredReservations = allReservations.filter(res => (res.nombre || '').toLowerCase().includes(searchTerm));
+            renderReservations(filteredReservations);
+        });
+
+        document.getElementById('download-csv-btn').addEventListener('click', () => {
+            const btn = document.getElementById('download-csv-btn');
+            btn.textContent = 'Generando...';
+            btn.disabled = true;
+            google.script.run
+                .withSuccessHandler(csvContent => {
+                    if (!csvContent) { alert('No se pudo generar el archivo.'); }
+                    else {
+                        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+                        const link = Object.assign(document.createElement('a'), {
+                            href: URL.createObjectURL(blob),
+                            download: "reservas_las_anforas.csv"
+                        });
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }
+                    btn.textContent = 'Descargar Hoja';
+                    btn.disabled = false;
+                })
+                .withFailureHandler(error => { alert('Error al descargar: ' + error.message); })
+                .exportSheetAsCSV();
+        });
+
+        document.getElementById('reservation-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!calendarState.checkIn || !calendarState.checkOut) {
+                alert('Por favor, selecciona una fecha de inicio y fin.');
+                return;
+            }
+            const submitButton = document.getElementById('submit-button');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Guardando...';
+
+            let otherExtras = Array.from(document.querySelectorAll('input[name="extras"]:checked')).map(el => el.value);
+            if(document.getElementById('sabanas-checkbox').checked) { otherExtras.push('Trae sábanas/toallas'); }
+
+            const reservationData = {
+                duplex: document.querySelector('input[name="duplex"]:checked').value,
+                fecha_inicio: formatDateForSheet(calendarState.checkIn),
+                fecha_fin: formatDateForSheet(calendarState.checkOut),
+                nombre: document.getElementById('nombre').value,
+                huespedes: document.getElementById('huespedes').value,
+                bebes: document.getElementById('bebes').value,
+                monto: document.getElementById('monto-hidden').value,
+                importe_pagado: document.getElementById('importe-pagado').value || '0',
+                saldo: document.getElementById('saldo-hidden').value,
+                vehiculo: document.getElementById('vehiculo-checkbox').checked ? 'Sí' : 'No',
+                extras: otherExtras.join(', '),
+                notas: document.getElementById('notas').value,
+                hora_checkin: document.getElementById('checkin-time').value,
+                hora_checkout: document.getElementById('checkout-time').value
+            };
+
+            google.script.run
+                .withSuccessHandler(response => {
+                    const result = JSON.parse(response);
+                    alert(result.message);
+                    if (result.success) {
+                        resetForm();
+                        fetchReservations();
+                    }
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Guardar Reserva';
+                })
+                .withFailureHandler(error => {
+                    alert('Error: ' + error.message);
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Guardar Reserva';
+                })
+                .addReservation(reservationData);
+        });
+
+        // --- CARGA INICIAL Y EVENT LISTENERS ---
+        window.addEventListener('load', () => {
+            fetchReservations();
+            
+            const fieldsToRecalculate = ['huespedes', 'descuento', 'sabanas-checkbox', 'salida-extendida-checkbox', 'promo-finde-checkbox', 'importe-pagado'];
+            fieldsToRecalculate.forEach(id => {
+                const element = document.getElementById(id);
+                element.addEventListener('input', calculateAndDisplayTotal);
+                element.addEventListener('change', calculateAndDisplayTotal);
+            });
+            
+            document.querySelectorAll('input[name="duplex"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const config = DUPLEX_CONFIG[e.target.value];
+                    const huespedesInput = document.getElementById('huespedes');
+                    huespedesInput.min = config.minGuests;
+                    huespedesInput.max = config.maxGuests;
+                    if (parseInt(huespedesInput.value) < config.minGuests) {
+                        huespedesInput.value = config.minGuests;
+                    }
+                    if (parseInt(huespedesInput.value) > config.maxGuests) {
+                        huespedesInput.value = config.maxGuests;
+                    }
+                    generateCalendar();
+                    calculateAndDisplayTotal();
+                });
+            });
+
+            // Lógica para auto-seleccionar checkout time con Salida Extendida
+            document.getElementById('salida-extendida-checkbox').addEventListener('change', (e) => {
+                const checkoutSelect = document.getElementById('checkout-time');
+                if (e.target.checked) {
+                    checkoutSelect.value = '18:00 hs';
+                } else {
+                    // Solo vuelve a 12hs si no es promo finde
+                    const isPromo = document.getElementById('promo-finde-checkbox').checked;
+                    if (!isPromo) {
+                        checkoutSelect.value = '12:00 hs';
+                    }
+                }
+            });
+        });
+    </script>
+  </body>
+</html>
 
